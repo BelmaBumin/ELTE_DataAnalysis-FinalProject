@@ -6,21 +6,108 @@ output: html_document
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(dplyr)
+library(ggplot2)
+library(gridExtra)
+library(car)
 ```
 
 ## R Markdown
 
 
 
-```{r}
-
-```
-
-## Including Plots
-
-You can also embed plots, for example:
-
 ```{r pressure, echo=FALSE}
+olympics_data = read_csv("https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2021/2021-07-27/olympics.csv")
+str(olympics_data)
 ```
 
+## EDA
+
+```{r}
+Hungary_olympics_data <- olympics_data %>%
+    filter(str_detect(team, "Hunga"))
+
+str(Hungary_olympics_data)
+na_count_Hungary_olympics_data <- colSums(is.na(Hungary_olympics_data))
+na_count_Hungary_olympics_data
+
+unique(Hungary_olympics_data$medal)
+unique(Hungary_olympics_data$sport)
+
+plot_Hungary_olympics_data <- ggplot(Hungary_olympics_data, aes(x = medal, fill = sex)) +
+  geom_bar(position = position_dodge()) +
+  theme_minimal() +
+  labs(x = "Medal", y = "Count", fill = "Sex") +
+  ggtitle("Medals for Sex Groups")
+
+plot_Hungary_olympics_data_season <- ggplot(Hungary_olympics_data, aes(x = medal, fill = season)) +
+  geom_bar(position = position_dodge()) +
+  theme_minimal() +
+  labs(x = "Medal", y = "Count", fill = "Sex") +
+  ggtitle("Medals for Sex Groups")
+
+summary(Hungary_olympics_data$season)
+plot_Hungary_olympics_data_season
+
+plot_age <- boxplot(age ~ medal, data = Hungary_olympics_data, main = "Box Plot", xlab = "Category", ylab = "Value")
+
+plot_age 
+
+mean_data_year <- Hungary_olympics_data %>%
+  group_by(medal) %>%
+  summarise(mean_year = mean(year))
+
+ggplot(Hungary_olympics_data, aes(x = year, color = medal)) +
+  geom_density() +
+  geom_vline(data = mean_data_year, aes(xintercept = mean_year, color = medal), linetype = "dashed") +
+  theme_minimal() +
+  labs(title = "Density Plot of Fare for Survival",
+       x = "Fare",
+       y = "Density",
+       color = "Survived")
+
+unique(Hungary_olympics_data$year)
+summary(Hungary_olympics_data$year)
+```
+
+## Data Cleaning
+
+```{r}
+Hungary_olympics_data_medal <- Hungary_olympics_data %>%
+    filter(!is.na(medal) & !is.na(age) & !is.na(weight) & !is.na(height) )
+
+Hungary_olympics_data_medal <- Hungary_olympics_data_medal %>%
+    filter(sport != "Modern Pentathlon")
+
+Hungary_olympics_data_medal_sport <- Hungary_olympics_data_medal %>%
+  mutate(sport = case_when(
+    sport %in% c("Judo", "Karate", "Boxing", "Wrestling", "Fencing") ~ "Martial Arts",
+    sport %in% c("Water Polo", "Swimming", "Rowing", "Sailing", "Canoeing") ~ "Water Sports",
+    sport %in% c("Tennis", "Handball", "Football") ~ "Ball Games",
+    sport %in% c("Art Competitions", "Equestrianism", "Figure Skating",
+                 "Shooting") ~ "Other",
+    TRUE ~ sport  
+  ))
+
+sort(unique(Hungary_olympics_data_medal_sport$sport))
+
+plot_Hungary_olympics_data_medal_sport<- ggplot(Hungary_olympics_data_medal_sport, aes(x = sport, fill = sex)) +
+  geom_bar(position = position_dodge()) +
+  theme_minimal() +
+  labs(x = "", y = "Count", fill = "Sex") +
+  ggtitle("Olympic Sports")
+
+plot_Hungary_olympics_data_medal_sport
+Hungary_olympics_data_medal_sport
+
+na_count_Hungary_olympics_data_sports <- colSums(is.na(Hungary_olympics_data_medal_sport))
+na_count_Hungary_olympics_data_sports
+```
+
+```{r}
+model_data <- Hungary_olympics_data_medal_sport %>% select(medal, sex, age, height, weight, year, sport)
+
+model_data
+```
 Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
