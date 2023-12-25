@@ -5,21 +5,24 @@ output: html_document
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(echo = FALSE)
 library(tidyverse)
 library(dplyr)
 library(ggplot2)
 library(gridExtra)
 library(car)
+library(MASS)
+library(brant)
+library(ordinal)
 ```
 
 ## R Markdown
 
 
 
-```{r pressure, echo=FALSE}
+```{r pressure, echo=TRUE}
 olympics_data = read_csv("https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2021/2021-07-27/olympics.csv")
-str(olympics_data)
+olympics_data
 ```
 
 ## EDA
@@ -28,9 +31,7 @@ str(olympics_data)
 Hungary_olympics_data <- olympics_data %>%
     filter(str_detect(team, "Hunga"))
 
-str(Hungary_olympics_data)
-na_count_Hungary_olympics_data <- colSums(is.na(Hungary_olympics_data))
-na_count_Hungary_olympics_data
+(na_count_Hungary_olympics_data <- colSums(is.na(Hungary_olympics_data)))
 
 unique(Hungary_olympics_data$medal)
 unique(Hungary_olympics_data$sport)
@@ -41,18 +42,14 @@ plot_Hungary_olympics_data <- ggplot(Hungary_olympics_data, aes(x = medal, fill 
   labs(x = "Medal", y = "Count", fill = "Sex") +
   ggtitle("Medals for Sex Groups")
 
-plot_Hungary_olympics_data_season <- ggplot(Hungary_olympics_data, aes(x = medal, fill = season)) +
+ggplot(Hungary_olympics_data, aes(x = medal, fill = season)) +
   geom_bar(position = position_dodge()) +
   theme_minimal() +
-  labs(x = "Medal", y = "Count", fill = "Sex") +
-  ggtitle("Medals for Sex Groups")
+  labs(x = "Medal", y = "Count", fill = "Season") +
+  ggtitle("Medals for Seasons")
 
-summary(Hungary_olympics_data$season)
-plot_Hungary_olympics_data_season
 
-plot_age <- boxplot(age ~ medal, data = Hungary_olympics_data, main = "Box Plot", xlab = "Category", ylab = "Value")
-
-plot_age 
+boxplot(age ~ medal, data = Hungary_olympics_data, main = "Box Plot", xlab = "Category", ylab = "Value")
 
 mean_data_year <- Hungary_olympics_data %>%
   group_by(medal) %>%
@@ -62,13 +59,10 @@ ggplot(Hungary_olympics_data, aes(x = year, color = medal)) +
   geom_density() +
   geom_vline(data = mean_data_year, aes(xintercept = mean_year, color = medal), linetype = "dashed") +
   theme_minimal() +
-  labs(title = "Density Plot of Fare for Survival",
-       x = "Fare",
+  labs(title = "Density Plot of Years According to Medals",
+       x = "Year",
        y = "Density",
-       color = "Survived")
-
-unique(Hungary_olympics_data$year)
-summary(Hungary_olympics_data$year)
+       color = "Medal")
 ```
 
 ## Data Cleaning
@@ -85,29 +79,141 @@ Hungary_olympics_data_medal_sport <- Hungary_olympics_data_medal %>%
     sport %in% c("Judo", "Karate", "Boxing", "Wrestling", "Fencing") ~ "Martial Arts",
     sport %in% c("Water Polo", "Swimming", "Rowing", "Sailing", "Canoeing") ~ "Water Sports",
     sport %in% c("Tennis", "Handball", "Football") ~ "Ball Games",
-    sport %in% c("Art Competitions", "Equestrianism", "Figure Skating",
-                 "Shooting") ~ "Other",
+    sport %in% c("Art Competitions", "Weightlifting", "Equestrianism", "Figure Skating",
+                 "Shooting", "") ~ "Other",
     TRUE ~ sport  
   ))
 
+
 sort(unique(Hungary_olympics_data_medal_sport$sport))
 
-plot_Hungary_olympics_data_medal_sport<- ggplot(Hungary_olympics_data_medal_sport, aes(x = sport, fill = sex)) +
+ggplot(Hungary_olympics_data_medal_sport, aes(x = sport, fill = sex)) +
   geom_bar(position = position_dodge()) +
   theme_minimal() +
   labs(x = "", y = "Count", fill = "Sex") +
   ggtitle("Olympic Sports")
 
-plot_Hungary_olympics_data_medal_sport
-Hungary_olympics_data_medal_sport
+table(Hungary_olympics_data_medal_sport$sport)
 
-na_count_Hungary_olympics_data_sports <- colSums(is.na(Hungary_olympics_data_medal_sport))
-na_count_Hungary_olympics_data_sports
+Hungary_olympics_data_medal_sport$sex <- factor(Hungary_olympics_data_medal_sport$sex)
+Hungary_olympics_data_medal_sport$sport <- factor(Hungary_olympics_data_medal_sport$sport)
+
+
+model_data <- Hungary_olympics_data_medal_sport[c("medal", "sex", "age", "height", "weight", "year", "sport")]
+
+model_data$female = ifelse(model_data$sex =="F", 1, 0)
+model_data$MarArts = ifelse(model_data$sport =="Martial Arts", 1, 0)
+model_data$WaterS = ifelse(model_data$sport =="Water Sports", 1, 0)
+model_data$BallG = ifelse(model_data$sport =="Ball Games", 1, 0)
+model_data$Gymnastic = ifelse(model_data$sport =="Gymnastics", 1, 0)
+model_data$Athletics = ifelse(model_data$sport =="Athletics", 1, 0)
+model_data$Other = ifelse(model_data$sport =="Other", 1, 0)
+model_data$vif = ifelse(model_data$medal =="Bronze", 1, ifelse(model_data$medal =="Silver", 2, 3))
+model_data$sport <- NULL
+
+
+na_count_model_data <- colSums(is.na(model_data))
+na_count_model_data
+
+model_data <- model_data %>%
+  mutate(medal = factor(medal, ordered = TRUE, levels = c("Bronze", "Silver", "Gold"))) 
+```
+
+
+```{r model-fit, error=TRUE, message=FALSE, warning=FALSE}
+model <- polr(medal ~ age + female +  MarArts + WaterS + BallG + Gymnastic + Athletics, data = model_data, Hess = TRUE)
+
+print(brant(model))
+
+linear_model_m <- lm(vif ~ female + age + MarArts + WaterS + BallG + Gymnastic + Athletics, data=model_data)
+
+vif(linear_model_m)
+```
+
+## New Model
+
+
+```{r}
+Hungary_olympics_data_medal_spor_nomulticol <- Hungary_olympics_data_medal %>%
+  mutate(sport = case_when(
+    sport %in% c("Judo", "Karate", "Boxing", "Wrestling", "Fencing") ~ "Martial Arts",
+    sport %in% c("Water Polo", "Swimming", "Rowing", "Sailing", "Canoeing") ~ "Water Sports",
+    sport %in% c("Tennis", "Handball", "Football") ~ "Ball Games",
+    sport %in% c("Art Competitions", "Weightlifting", "Equestrianism", "Figure Skating",
+                 "Shooting", "Gymnastics", "Athletics" ) ~ "Other",
+    TRUE ~ sport  
+  ))
+
+sort(unique(Hungary_olympics_data_medal_spor_nomulticol$sport))
+
+ggplot(Hungary_olympics_data_medal_spor_nomulticol, aes(x = sport, fill = sex)) +
+  geom_bar(position = position_dodge()) +
+  theme_minimal() +
+  labs(x = "", y = "Count", fill = "Sex") +
+  ggtitle("Olympic Sports")
+
+table(Hungary_olympics_data_medal_spor_nomulticol$sport)
+
+
+Hungary_olympics_data_medal_spor_nomulticol$sex <- factor(Hungary_olympics_data_medal_spor_nomulticol$sex)
+Hungary_olympics_data_medal_spor_nomulticol$sport <- factor(Hungary_olympics_data_medal_spor_nomulticol$sport)
+
+
+model_data_nomulticol <- Hungary_olympics_data_medal_spor_nomulticol[c("medal", "sex", "age", "height", "weight", "year", "sport")]
+
+model_data_nomulticol$female= ifelse(model_data_nomulticol$sex =="F", 1, 0)
+model_data_nomulticol$MarArts = ifelse(model_data_nomulticol$sport =="Martial Arts", 1, 0)
+model_data_nomulticol$WaterS = ifelse(model_data_nomulticol$sport =="Water Sports", 1, 0)
+model_data_nomulticol$BallG = ifelse(model_data_nomulticol$sport =="Ball Games", 1, 0)
+model_data_nomulticol$Other = ifelse(model_data_nomulticol$sport =="Other", 1, 0)
+model_data_nomulticol$vif = ifelse(model_data_nomulticol$medal =="Bronze", 1, ifelse(model_data_nomulticol$medal =="Silver", 2, 3))
+model_data_nomulticol$sport <- NULL
+
+(model_data_nomulticol <- model_data_nomulticol %>%
+  mutate(medal = factor(medal, ordered = TRUE, levels = c("Bronze", "Silver", "Gold"))) )
+
 ```
 
 ```{r}
-model_data <- Hungary_olympics_data_medal_sport %>% select(medal, sex, age, height, weight, year, sport)
+model_u <- polr(medal ~ age + female +  MarArts + WaterS + BallG, data = model_data_nomulticol, Hess = TRUE)
 
-model_data
+print(brant(model_u))
+
+model_final <- clm(medal ~ age + female +  MarArts + WaterS + BallG , data = model_data_nomulticol)
+summary(model_final)
+model_final_partial <- clm(medal ~ age +  MarArts + WaterS + BallG, nominal = ~ female, data = model_data_nomulticol)
+anova(model_final, model_final_partial)
+
+linear_model_u <- lm(vif ~ female + age + MarArts + WaterS + BallG, data=model_data_nomulticol)
+vif(linear_model_u)
+
+
+table(model_data_nomulticol$medal, model_data_nomulticol$female)
+prop.table(table(model_data_nomulticol$medal, model_data_nomulticol$female))
+table(model_data_nomulticol$medal, model_data_nomulticol$MarArts)
+prop.table(table(model_data_nomulticol$medal, model_data_nomulticol$MarArts))
+table(model_data_nomulticol$medal, model_data_nomulticol$WaterS)
+prop.table(table(model_data_nomulticol$medal, model_data_nomulticol$WaterS))
+table(model_data_nomulticol$medal, model_data_nomulticol$BallG)
+prop.table(table(model_data_nomulticol$medal, model_data_nomulticol$BallG))
 ```
+
+```{r}
+model_null <- clm(medal ~ 1, data = model_data_nomulticol)
+
+anova(model_null, model_final_partial)
+
+summary(model_final_partial)
+model_summary <- summary(model_final_partial)
+
+coefs <- coef(model_final_partial)
+std_errors <- model_summary$coefficients[, "Std. Error"]
+wald_stat <- (coefs / std_errors)^2
+p_values <- 2 * (1 - pnorm(sqrt(wald_stat)))
+(p_values_female <- p_values[grep("female", names(p_values))])
+
+
+(odds_ratios <- exp(round(coefs, 3)))
+```
+
 Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
