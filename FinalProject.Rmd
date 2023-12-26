@@ -17,7 +17,7 @@ library(profileModel)
 ```
 
 ## Research 
-This research has focused on the Olympic categories that Hungary performed at the top level since the earliest dates of Olympics when Hungary won a medal regardless of the medal rank. The main aim of the research is to identify the specific Olympic categories that Hungarian athletes tend to win higher-rank medals.
+This research focuses on the Olympic categories that Hungary performs best since the early dates of Olympics. The main aim of the research is to identify the specific Olympic categories that Hungarian athletes tend to win higher-rank medals.
 
 The world Olympic dataset shared in tidytuesday at 27.07.2021 has been important from https://github.com/rfordatascience/tidytuesday/tree/master/data/2021/2021-07-27 . 
 
@@ -26,7 +26,7 @@ The world Olympic dataset shared in tidytuesday at 27.07.2021 has been important
 olympics_data = read_csv("https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2021/2021-07-27/olympics.csv")
 ```
 
-Since this dataset includes the world data, but not just Hungary, the team names are filtered for Hungarian teams to be used in the dataset. 
+Since this dataset includes the world data and not just Hungary, the team names are filtered for names of Hungarian teams. The filtered dataset is ready for explanatory data analysis.
 
 ```{r}
 Hungary_olympics_data <- olympics_data %>%
@@ -39,7 +39,7 @@ Hungary_olympics_data
 ### Missing Values
 
 
-As the numbers below show, medal column of the dataset that has the highest number of missing values. height, weight and age are the columns following medal column for having missing values.
+As the numbers below show, medal column of the dataset that has the highest number of missing values. height, weight and age are the columns following medal column in having missing values.
 
 
 ```{r}
@@ -110,26 +110,26 @@ ggplot(Hungary_olympics_data, aes(x = year, color = medal)) +
 
 ## Data Cleaning
 
-Since these missing values represent the results where Hungarian athletes did not win any medal and the main focus of this research is the Olympics categories where Hungarian athletes won at least a Bronze medal, missing values in medal columns have been removed from the dataset. In addition to medal, the age rows with missing values are also removed. 
+Since these missing values represent the times when Hungarian athletes did not win any medal, considering the main focus of this research that requires at least a Bronze medal, missing values in medal columns have been removed from the dataset. In addition to medal, the age rows with missing values are also removed. 
 ```{r}
 Hungary_olympics_data_medal <- Hungary_olympics_data %>%
-    filter(!is.na(medal) & !is.na(age))
+    filter(!is.na(medal) & !is.na(age) &  !is.na(height)&  !is.na(weight))
 ```
 
-After the removal of missing values, current data shows that Hungarian athletes won medals in 20 different Olympic categories since the early days of Olympics.
+After the removal of missing values, current data shows that Hungarian athletes won medals in 17 different Olympic categories since the early days of Olympics.
 ```{r}
 cat("Number of categories that Hungary won a medal since the early days of Olympics is ", length(unique(Hungary_olympics_data_medal$sport)), ". These sub-categories and number of medals won in these categories are: ", "\n")
 table(Hungary_olympics_data_medal$sport)
 ```
 
-Since the category of Modern Pentathlon is actually combination of 5 different sub-categories, fencing, shooting, swimming, running, and horseback riding, rows with Modern Pentathlon have been excluded from the dataset. In addition to this change, similar sub-categories are combined in a ore general sub-category. For example, Judo, Karate, Boxing, Wrestling and Fencing" are combined under the new category Martial Arts. Water Polo, Swimming, Rowing, Sailing and Canoeing are united under a new sub-category called Water Sports. Tennis, Handball and Football are combined under the name of Ball Games. The subcategories of Athletics and Gymnastics are left untouched even though their attendence levels were lower than other categories. Other sub-categories where Hungary won only few medals like Art Competitions, Weightlifting, Equestrianism, Figure Skating and Shooting are combined under the category of Other. After these combinations, dataset ended up having 6 different sub-categories.
+Since the category of Modern Pentathlon is actually combination of 5 different sub-categories, fencing, shooting, swimming, running, and horseback riding, rows with Modern Pentathlon have been excluded from the dataset. In addition to this change, similar sub-categories are combined in a ore general sub-category. For example, Judo, Boxing, Wrestling and Fencing" are combined under the new category Martial Arts. Water Polo, Swimming, Rowing, Sailing and Canoeing are united under a new sub-category called Water Sports.  Handball and Football are combined under the name of Ball Games. The subcategories of Athletics and Gymnastics are left untouched even though their attendence levels were lower than other categories. Other sub-categories where Hungary won only few medals like Weightlifting, Figure Skating and Shooting are combined under the category of Other. After these combinations, dataset ended up having 6 different sub-categories.
 ```{r}
 Hungary_olympics_data_medal <- Hungary_olympics_data_medal %>%
     filter(sport != "Modern Pentathlon", !is.na(height), !is.na(weight))
 
 Hungary_olympics_data_medal_sport <- Hungary_olympics_data_medal %>%
   mutate(sport = case_when(
-    sport %in% c("Judo", "Karate", "Boxing", "Wrestling", "Fencing") ~ "Martial Arts",
+    sport %in% c("Judo", "Boxing", "Wrestling", "Fencing") ~ "Martial Arts",
     sport %in% c("Water Polo", "Swimming", "Rowing", "Sailing", "Canoeing") ~ "Water Sports",
     sport %in% c("Tennis", "Handball", "Football") ~ "Ball Games",
     sport %in% c("Art Competitions", "Weightlifting", "Equestrianism", "Figure Skating",
@@ -165,7 +165,7 @@ model_data$sport <- NULL
 ```
 
 ## Ordered Logistic Regression Model
-Since dependent variable of our model is an ordered variable, the medal ranks, I built up an ordered logistic regressio model where the dependent variable is medal with 3 levels, Bronze, Silver and Gold, while independent variables are age, female (1 for female, 0 for male),  MarArts (1 if sub-category is Martial Arts, 0 otherwise), WaterS (1 if sub-category is Water Sports, 0 otherwise), BallG (1 if sub-category is Ball Games, 0 otherwise), Gymnastic (1 if sub-category is Gymnastic, 0 otherwise), Athletics (1 if sub-category is Athletics, 0 otherwise). 
+Since dependent variable of our model is an ordered variable, the medal ranks, I built up an ordered logistic regression model where the dependent variable is medal with 3 levels, Bronze, Silver and Gold, while independent variables are age, female (1 for female, 0 for male),  MarArts (1 if sub-category is Martial Arts, 0 otherwise), WaterS (1 if sub-category is Water Sports, 0 otherwise), BallG (1 if sub-category is Ball Games, 0 otherwise), Gymnastic (1 if sub-category is Gymnastic, 0 otherwise), Athletics (1 if sub-category is Athletics, 0 otherwise). 
 ```{r}
 model_data <- model_data %>%
   mutate(medal = factor(medal, ordered = TRUE, levels = c("Bronze", "Silver", "Gold"))) 
@@ -184,7 +184,7 @@ vif(linear_model_m)
 ```
 
 ## New Model
-Since Water Sports, Martial Arts and Ball Games are top 3 sub-categories with the highest number of medals, I added Gymnastics and Athletics to the sub-group of Other and excluded from the model
+Since Water Sports, Martial Arts and Ball Games are top 3 sub-categories with the highest number of medals, I added Gymnastics and Athletics to the sub-group of Other and excluded from the model as a solution to moderate level multicollinearity.
 
 ```{r}
 Hungary_olympics_data_medal_spor_nomulticol <- Hungary_olympics_data_medal %>%
@@ -252,7 +252,7 @@ prop.table(table(model_data_nomulticol$medal, model_data_nomulticol$BallG))
 
 ### Proportional Odds Assumption
 
-This assumption requires having a parallel lines among the levels of dependent variable. The result of brant test below shows that our new model satisfies the proportional odds assumption. Additionally,  each of our independent variables also satisfy this assumption.
+This assumption requires having a parallel lines among the levels of dependent variable. The result of brant test below shows that our new model satisfies the proportional odds assumption. Additionally,  each of our independent variables also satisfy this assumption since results of brant test is not significant for any independent variable.
 
 ```{r}
 print(brant(model_u))
@@ -268,6 +268,8 @@ When the ordered logistic regression and null model are compared, results showed
 model_null <- polr(medal ~ 1, data = model_data_nomulticol)
 lrtest(model_null, model_u)
 ```
+
+## Results
 
 ```{r}
 model_summary <- summary(model_u)
@@ -289,7 +291,7 @@ result_table <- tibble(
 result_table <- result_table %>%
   mutate(across(Coefficients:OddsRatio, ~ round(., digits = 3)))
 
-knitr::kable(result_table, caption = "Olympics Dataset - Ordered Logistic Regression", digits = 3)
+knitr::kable(result_table, caption = "Olympics Dataset for Hungary - Ordered Logistic Regression", digits = 3)
 
 
 ci_profile <- confint(profile(model_u))
@@ -301,7 +303,7 @@ result_table_ci <- tibble(
   CI_Upper= odds_ratio_ci[,2])
 
 
-knitr::kable(result_table_ci, caption = "Confidence Interval of Odd Ratios in Ordered Logistic Regression", digits = 3)
+knitr::kable(result_table_ci, caption = "Confidence Intervals of Odd Ratios in Ordered Logistic Regression", digits = 3)
 
 result_table_mcR <- tibble(
   Term = names(coefs[1:7]),
@@ -314,5 +316,9 @@ summary_table <- data.frame(
   BIC = BIC(model_u))
 
 knitr::kable(summary_table, caption = "Ordered Logistic Regression Model - Summary Statistics", digits = 3)
-
 ```
+## Discussion
+
+Above table shows that age and Water Sports have significant effects on the ranking of the medal that athletes win. The odd ratios show that, 1 age increase in athlete s age causes 1.034 times increase in the chance of winning a higher rank medal. If the athlete is competing in Water Sports, his/her chance to win a higher rank medal is 2.44 higher than competing in other categories. On the other hand, competing in Martial Arts and Ball Games do not significantly increase the chance of winning a higher level of medal.
+Besides sport categories, gender, height and weight of athlete do not seem to have a  significant effect on the ranks of medals. 
+These results indicate that even though Martial Arts, Ball Games and Water Sport are top three Olympic categories that Hungarian athletes won different levels of medals, Water Sport is the only category that Hungarian athletes are improving relatively higher compared to other top categories. 
