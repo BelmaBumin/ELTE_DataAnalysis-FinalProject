@@ -289,9 +289,30 @@ result_table <- tibble(
 result_table <- result_table %>%
   mutate(across(Coefficients:OddsRatio, ~ round(., digits = 3)))
 
-knitr::kable(result_table, caption = "Summary Statistics of Ordered Logistic Regression", digits = 3)
+knitr::kable(result_table, caption = "Olympics Dataset - Ordered Logistic Regression", digits = 3)
+
 
 ci_profile <- confint(profile(model_u))
 odds_ratio_ci <- exp(ci_profile)
-odds_ratio_ci 
+
+result_table_ci <- tibble(
+  Term = names(coefs[1:7]),
+  CI_Lower = odds_ratio_ci[,1], 
+  CI_Upper= odds_ratio_ci[,2])
+
+
+knitr::kable(result_table_ci, caption = "Confidence Interval of Odd Ratios in Ordered Logistic Regression", digits = 3)
+
+result_table_mcR <- tibble(
+  Term = names(coefs[1:7]),
+  CI_Lower = odds_ratio_ci[,1], 
+  CI_Upper= odds_ratio_ci[,2])
+
+summary_table <- data.frame(
+  mcfadden_R = 1 - (logLik(model_u)/logLik(model_null)),
+  AIC = AIC(model_u),
+  BIC = BIC(model_u))
+
+knitr::kable(summary_table, caption = "Ordered Logistic Regression Model - Summary Statistics", digits = 3)
+
 ```
