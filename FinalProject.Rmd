@@ -16,41 +16,84 @@ library(brant)
 library(ordinal)
 ```
 
-## R Markdown
+## Research 
+This research has focused on the Olympic categories that Hungary performed at the top level since the earliest dates of Olympics when Hungary won a medal regardless of the medal rank. The main aim of the research is to identify the specific Olympic categories that Hungarian athletes tend to win higher-rank medals.
 
+The world Olympic dataset shared in tidytuesday at 27.07.2021 has been important from https://github.com/rfordatascience/tidytuesday/tree/master/data/2021/2021-07-27 . 
 
 
 ```{r pressure, echo=TRUE}
 olympics_data = read_csv("https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2021/2021-07-27/olympics.csv")
-olympics_data
 ```
 
-## EDA
+Since this dataset includes the world data, but not just Hungary, the team names are filtered for Hungarian teams to be used in the dataset. 
 
 ```{r}
 Hungary_olympics_data <- olympics_data %>%
     filter(str_detect(team, "Hunga"))
+Hungary_olympics_data 
+```
 
-(na_count_Hungary_olympics_data <- colSums(is.na(Hungary_olympics_data)))
+## Explanatory Data Analysis
 
-unique(Hungary_olympics_data$medal)
+### Missing Values
+
+
+As the numbers below show, medal column of the dataset that has the highest number of missing values. height, weight and age are the columns following medal column for having missing values.
+
+
+```{r}
+vars_NA <- c("id ", "name", "sex", "age", "height",  "weight", "team", "noc", "games", "year" ,"season", "city", "sport", "event", "medal")
+
+
+for (variable in vars_NA) {
+  missing_count <- sum(is.na(Hungary_olympics_data[[variable]]) | Hungary_olympics_data[[variable]] == "" | Hungary_olympics_data[[variable]] == " ")
+  cat("Number of NA or blank values in", variable, ":", missing_count, "\n")
+}
+```
+
+
+As the below list present, since the early days of Olympics, Hungary competed in 42 different sub-Olympic categories.
+
+```{r}
+cat("Number of sub-Olympic categories Hungary competed until today is", length(unique(Hungary_olympics_data$sport)), ". These sub-categories are: ", "\n")
+
 unique(Hungary_olympics_data$sport)
 
-plot_Hungary_olympics_data <- ggplot(Hungary_olympics_data, aes(x = medal, fill = sex)) +
+```
+
+The plot below shows the gender division among Hungarian athletes attended to Olympics regarding the ranking of medals they won if they did any. As it can be seen, majority of both genders returned home without a medal. While males who won a medal mostly won a golden one, female athletes tend to win Silver or Bronze medal.
+
+```{r}
+ggplot(Hungary_olympics_data, aes(x = medal, fill = sex)) +
   geom_bar(position = position_dodge()) +
   theme_minimal() +
   labs(x = "Medal", y = "Count", fill = "Sex") +
   ggtitle("Medals for Sex Groups")
+```
 
+The plot below shows attendance of Hungarian in Olympics in different seasons, Summer or Winter. As it can be seen, Hungary mostly took its place in Summer Olympics. Additionally, Hungarian athletes attended to Winter Olympics generally returned home without a medal.
+
+
+```{r}
 ggplot(Hungary_olympics_data, aes(x = medal, fill = season)) +
   geom_bar(position = position_dodge()) +
   theme_minimal() +
   labs(x = "Medal", y = "Count", fill = "Season") +
   ggtitle("Medals for Seasons")
+```
+
+Box plot below represent the Athletes ages regarding the medals they won. The similarity between the mean age of different medals show that majority of the athletes were between 20 and 30 years old. 
 
 
+```{r}
 boxplot(age ~ medal, data = Hungary_olympics_data, main = "Box Plot", xlab = "Category", ylab = "Value")
+```
 
+Density plot represented below aims to show the performance of Hungarian Athletes since the early days of Olympics. As the plot shows, Hungarian athletes experienced the highest success level in all medal groups between 1965 and 1980. As another common pattern, the density of all ranks including NAs that represent the Olympics athletes did not win a medal shows a decreasing trend. This decrease might also be pointing at the decreasing attendance of Hungarian athletes to Olympics.
+
+
+```{r}
 mean_data_year <- Hungary_olympics_data %>%
   group_by(medal) %>%
   summarise(mean_year = mean(year))
@@ -67,10 +110,20 @@ ggplot(Hungary_olympics_data, aes(x = year, color = medal)) +
 
 ## Data Cleaning
 
+Since these missing values represent the results where Hungarian athletes did not win any medal and the main focus of this research is the Olympics categories where Hungarian athletes won at least a Bronze medal, missing values in medal columns have been removed from the dataset. In addition to medal, the age rows with missing values are also removed. 
 ```{r}
 Hungary_olympics_data_medal <- Hungary_olympics_data %>%
-    filter(!is.na(medal) & !is.na(age) & !is.na(weight) & !is.na(height) )
+    filter(!is.na(medal) & !is.na(age))
+```
 
+After the removal of missing values, current data shows that Hungarian athletes won medals in 20 different Olympic categories since the early days of Olympics.
+```{r}
+cat("Number of categories that Hungary won a medal since the early days of Olympics is ", length(unique(Hungary_olympics_data_medal$sport)), ". These sub-categories and number of medals won in these categories are: ", "\n")
+table(Hungary_olympics_data_medal$sport)
+```
+
+Since the category of Modern Pentathlon is actually combination of 5 different sub-categories, fencing, shooting, swimming, running, and horseback riding, rows with Modern Pentathlon have been excluded from the dataset. In addition to this change, similar sub-categories are combined in a ore general sub-category. For example, Judo, Karate, Boxing, Wrestling and Fencing" are combined under the new category Martial Arts. Water Polo, Swimming, Rowing, Sailing and Canoeing are united under a new sub-category called Water Sports. Tennis, Handball and Football are combined under the name of Ball Games. The subcategories of Athletics and Gymnastics are left untouched even though their attendence levels were lower than other categories. Other sub-categories where Hungary won only few medals like Art Competitions, Weightlifting, Equestrianism, Figure Skating and Shooting are combined under the category of Other. After these combinations, dataset ended up having 6 different sub-categories.
+```{r}
 Hungary_olympics_data_medal <- Hungary_olympics_data_medal %>%
     filter(sport != "Modern Pentathlon")
 
@@ -80,13 +133,14 @@ Hungary_olympics_data_medal_sport <- Hungary_olympics_data_medal %>%
     sport %in% c("Water Polo", "Swimming", "Rowing", "Sailing", "Canoeing") ~ "Water Sports",
     sport %in% c("Tennis", "Handball", "Football") ~ "Ball Games",
     sport %in% c("Art Competitions", "Weightlifting", "Equestrianism", "Figure Skating",
-                 "Shooting", "") ~ "Other",
+                 "Shooting") ~ "Other",
     TRUE ~ sport  
   ))
-
-
 sort(unique(Hungary_olympics_data_medal_sport$sport))
+```
 
+Below plot shows the gender division in the new sub-categories.
+```{r}
 ggplot(Hungary_olympics_data_medal_sport, aes(x = sport, fill = sex)) +
   geom_bar(position = position_dodge()) +
   theme_minimal() +
@@ -94,12 +148,11 @@ ggplot(Hungary_olympics_data_medal_sport, aes(x = sport, fill = sex)) +
   ggtitle("Olympic Sports")
 
 table(Hungary_olympics_data_medal_sport$sport)
+```
 
-Hungary_olympics_data_medal_sport$sex <- factor(Hungary_olympics_data_medal_sport$sex)
-Hungary_olympics_data_medal_sport$sport <- factor(Hungary_olympics_data_medal_sport$sport)
-
-
-model_data <- Hungary_olympics_data_medal_sport[c("medal", "sex", "age", "height", "weight", "year", "sport")]
+After cleaning missing values and combining sub-groups, model dataset is identified with the columns of medal, sex, age, year and sport. Since the main aim of this research is to investigate the effect of sub-categories on the rank of medals Hungarian athletes won, dummy variables for age, and sub-categories are created as a binary variable. 
+```{r}
+model_data <- Hungary_olympics_data_medal_sport[c("medal", "sex", "age", "year", "sport")]
 
 model_data$female = ifelse(model_data$sex =="F", 1, 0)
 model_data$MarArts = ifelse(model_data$sport =="Martial Arts", 1, 0)
@@ -107,31 +160,30 @@ model_data$WaterS = ifelse(model_data$sport =="Water Sports", 1, 0)
 model_data$BallG = ifelse(model_data$sport =="Ball Games", 1, 0)
 model_data$Gymnastic = ifelse(model_data$sport =="Gymnastics", 1, 0)
 model_data$Athletics = ifelse(model_data$sport =="Athletics", 1, 0)
-model_data$Other = ifelse(model_data$sport =="Other", 1, 0)
 model_data$vif = ifelse(model_data$medal =="Bronze", 1, ifelse(model_data$medal =="Silver", 2, 3))
 model_data$sport <- NULL
-
-
-na_count_model_data <- colSums(is.na(model_data))
-na_count_model_data
-
-model_data <- model_data %>%
-  mutate(medal = factor(medal, ordered = TRUE, levels = c("Bronze", "Silver", "Gold"))) 
 ```
 
-
-```{r model-fit, error=TRUE, message=FALSE, warning=FALSE}
+## Ordered Logistic Regression Model
+Since dependent variable of our model is an ordered variable, the medal ranks, I built up an ordered logistic regressio model where the dependent variable is medal with 3 levels, Bronze, Silver and Gold, while independent variables are age, female (1 for female, 0 for male),  MarArts (1 if sub-category is Martial Arts, 0 otherwise), WaterS (1 if sub-category is Water Sports, 0 otherwise), BallG (1 if sub-category is Ball Games, 0 otherwise), Gymnastic (1 if sub-category is Gymnastic, 0 otherwise), Athletics (1 if sub-category is Athletics, 0 otherwise). 
+```{r}
+model_data <- model_data %>%
+  mutate(medal = factor(medal, ordered = TRUE, levels = c("Bronze", "Silver", "Gold"))) 
 model <- polr(medal ~ age + female +  MarArts + WaterS + BallG + Gymnastic + Athletics, data = model_data, Hess = TRUE)
+```
 
-print(brant(model))
+### Model Assumptions
 
+#### Multicollinearity
+The results indicate that our model has moderate level of multicollinearity.
+```{r model-fit, error=TRUE, message=FALSE, warning=FALSE}
 linear_model_m <- lm(vif ~ female + age + MarArts + WaterS + BallG + Gymnastic + Athletics, data=model_data)
 
 vif(linear_model_m)
 ```
 
 ## New Model
-
+Since Water Sports, Martial Arts and Ball Games are top 3 sub-categories with the highest number of medals, I added Gymnastics and Athletics to the sub-group of Other and excluded from the model
 
 ```{r}
 Hungary_olympics_data_medal_spor_nomulticol <- Hungary_olympics_data_medal %>%
@@ -151,38 +203,27 @@ ggplot(Hungary_olympics_data_medal_spor_nomulticol, aes(x = sport, fill = sex)) 
   theme_minimal() +
   labs(x = "", y = "Count", fill = "Sex") +
   ggtitle("Olympic Sports")
+```
 
-table(Hungary_olympics_data_medal_spor_nomulticol$sport)
-
-
-Hungary_olympics_data_medal_spor_nomulticol$sex <- factor(Hungary_olympics_data_medal_spor_nomulticol$sex)
-Hungary_olympics_data_medal_spor_nomulticol$sport <- factor(Hungary_olympics_data_medal_spor_nomulticol$sport)
-
-
+The dataset for New Model is created similar to the previous data by creating dummy variables for the sub-categories.
+```{r}
 model_data_nomulticol <- Hungary_olympics_data_medal_spor_nomulticol[c("medal", "sex", "age", "height", "weight", "year", "sport")]
 
 model_data_nomulticol$female= ifelse(model_data_nomulticol$sex =="F", 1, 0)
 model_data_nomulticol$MarArts = ifelse(model_data_nomulticol$sport =="Martial Arts", 1, 0)
 model_data_nomulticol$WaterS = ifelse(model_data_nomulticol$sport =="Water Sports", 1, 0)
 model_data_nomulticol$BallG = ifelse(model_data_nomulticol$sport =="Ball Games", 1, 0)
-model_data_nomulticol$Other = ifelse(model_data_nomulticol$sport =="Other", 1, 0)
 model_data_nomulticol$vif = ifelse(model_data_nomulticol$medal =="Bronze", 1, ifelse(model_data_nomulticol$medal =="Silver", 2, 3))
 model_data_nomulticol$sport <- NULL
 
-(model_data_nomulticol <- model_data_nomulticol %>%
-  mutate(medal = factor(medal, ordered = TRUE, levels = c("Bronze", "Silver", "Gold"))) )
+model_data_nomulticol <- model_data_nomulticol %>%
+  mutate(medal = factor(medal, ordered = TRUE, levels = c("Bronze", "Silver", "Gold"))) 
 
 ```
 
 ```{r}
 model_u <- polr(medal ~ age + female +  MarArts + WaterS + BallG, data = model_data_nomulticol, Hess = TRUE)
 
-print(brant(model_u))
-
-model_final <- clm(medal ~ age + female +  MarArts + WaterS + BallG , data = model_data_nomulticol)
-summary(model_final)
-model_final_partial <- clm(medal ~ age +  MarArts + WaterS + BallG, nominal = ~ female, data = model_data_nomulticol)
-anova(model_final, model_final_partial)
 
 linear_model_u <- lm(vif ~ female + age + MarArts + WaterS + BallG, data=model_data_nomulticol)
 vif(linear_model_u)
@@ -196,6 +237,14 @@ table(model_data_nomulticol$medal, model_data_nomulticol$WaterS)
 prop.table(table(model_data_nomulticol$medal, model_data_nomulticol$WaterS))
 table(model_data_nomulticol$medal, model_data_nomulticol$BallG)
 prop.table(table(model_data_nomulticol$medal, model_data_nomulticol$BallG))
+
+
+print(brant(model_u))
+
+model_final <- clm(medal ~ age + female +  MarArts + WaterS + BallG , data = model_data_nomulticol)
+summary(model_final)
+model_final_partial <- clm(medal ~ age +  MarArts + WaterS + BallG, nominal = ~ female, data = model_data_nomulticol)
+anova(model_final, model_final_partial)
 ```
 
 ```{r}
