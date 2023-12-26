@@ -9,11 +9,11 @@ knitr::opts_chunk$set(echo = FALSE)
 library(tidyverse)
 library(dplyr)
 library(ggplot2)
-library(gridExtra)
 library(car)
 library(MASS)
 library(brant)
-library(ordinal)
+library(lmtest)
+library(profileModel)
 ```
 
 ## Research 
@@ -125,7 +125,7 @@ table(Hungary_olympics_data_medal$sport)
 Since the category of Modern Pentathlon is actually combination of 5 different sub-categories, fencing, shooting, swimming, running, and horseback riding, rows with Modern Pentathlon have been excluded from the dataset. In addition to this change, similar sub-categories are combined in a ore general sub-category. For example, Judo, Karate, Boxing, Wrestling and Fencing" are combined under the new category Martial Arts. Water Polo, Swimming, Rowing, Sailing and Canoeing are united under a new sub-category called Water Sports. Tennis, Handball and Football are combined under the name of Ball Games. The subcategories of Athletics and Gymnastics are left untouched even though their attendence levels were lower than other categories. Other sub-categories where Hungary won only few medals like Art Competitions, Weightlifting, Equestrianism, Figure Skating and Shooting are combined under the category of Other. After these combinations, dataset ended up having 6 different sub-categories.
 ```{r}
 Hungary_olympics_data_medal <- Hungary_olympics_data_medal %>%
-    filter(sport != "Modern Pentathlon")
+    filter(sport != "Modern Pentathlon", !is.na(height), !is.na(weight))
 
 Hungary_olympics_data_medal_sport <- Hungary_olympics_data_medal %>%
   mutate(sport = case_when(
@@ -152,7 +152,7 @@ table(Hungary_olympics_data_medal_sport$sport)
 
 After cleaning missing values and combining sub-groups, model dataset is identified with the columns of medal, sex, age, year and sport. Since the main aim of this research is to investigate the effect of sub-categories on the rank of medals Hungarian athletes won, dummy variables for age, and sub-categories are created as a binary variable. 
 ```{r}
-model_data <- Hungary_olympics_data_medal_sport[c("medal", "sex", "age", "year", "sport")]
+model_data <- Hungary_olympics_data_medal_sport[c("medal", "sex", "age", "height", "weight", "sport")]
 
 model_data$female = ifelse(model_data$sex =="F", 1, 0)
 model_data$MarArts = ifelse(model_data$sport =="Martial Arts", 1, 0)
@@ -169,7 +169,8 @@ Since dependent variable of our model is an ordered variable, the medal ranks, I
 ```{r}
 model_data <- model_data %>%
   mutate(medal = factor(medal, ordered = TRUE, levels = c("Bronze", "Silver", "Gold"))) 
-model <- polr(medal ~ age + female +  MarArts + WaterS + BallG + Gymnastic + Athletics, data = model_data, Hess = TRUE)
+
+model <- polr(medal ~ age + female + height + weight +  MarArts + WaterS + BallG + Gymnastic + Athletics, data = model_data, Hess = TRUE)
 ```
 
 ### Model Assumptions
@@ -177,7 +178,7 @@ model <- polr(medal ~ age + female +  MarArts + WaterS + BallG + Gymnastic + Ath
 #### Multicollinearity
 The results indicate that our model has moderate level of multicollinearity.
 ```{r model-fit, error=TRUE, message=FALSE, warning=FALSE}
-linear_model_m <- lm(vif ~ female + age + MarArts + WaterS + BallG + Gymnastic + Athletics, data=model_data)
+linear_model_m <- lm(vif ~ female + age + height + weight + MarArts + WaterS + BallG + Gymnastic + Athletics, data=model_data)
 
 vif(linear_model_m)
 ```
@@ -207,7 +208,7 @@ ggplot(Hungary_olympics_data_medal_spor_nomulticol, aes(x = sport, fill = sex)) 
 
 The dataset for New Model is created similar to the previous data by creating dummy variables for the sub-categories.
 ```{r}
-model_data_nomulticol <- Hungary_olympics_data_medal_spor_nomulticol[c("medal", "sex", "age", "height", "weight", "year", "sport")]
+model_data_nomulticol <- Hungary_olympics_data_medal_spor_nomulticol[c("medal", "sex", "age", "height", "weight", "sport")]
 
 model_data_nomulticol$female= ifelse(model_data_nomulticol$sex =="F", 1, 0)
 model_data_nomulticol$MarArts = ifelse(model_data_nomulticol$sport =="Martial Arts", 1, 0)
@@ -221,48 +222,76 @@ model_data_nomulticol <- model_data_nomulticol %>%
 
 ```
 
+### Model Assumptions
+
+### Multicollinearity
+
+Result below indicates that new model solves the problem of moderate multicollinearity.
 ```{r}
-model_u <- polr(medal ~ age + female +  MarArts + WaterS + BallG, data = model_data_nomulticol, Hess = TRUE)
+model_u <- polr(medal ~ age + height + weight + female +  MarArts + WaterS + BallG, data = model_data_nomulticol, Hess = TRUE)
 
 
-linear_model_u <- lm(vif ~ female + age + MarArts + WaterS + BallG, data=model_data_nomulticol)
+linear_model_u <- lm(vif ~ female + age + height + weight + MarArts + WaterS + BallG, data=model_data_nomulticol)
 vif(linear_model_u)
+```
 
+### Outliers
 
-table(model_data_nomulticol$medal, model_data_nomulticol$female)
+The probability tables below that are calculated for each binary independent variable shows that there is no outlier problem in the current dataset.
+
+```{r}
+cat("Probability table of medal vs female (1 for female, 0 for male)")
 prop.table(table(model_data_nomulticol$medal, model_data_nomulticol$female))
-table(model_data_nomulticol$medal, model_data_nomulticol$MarArts)
+cat("Probability table of medal vs Martial Arts (1 for Martial Arts, 0 otherwise)")
 prop.table(table(model_data_nomulticol$medal, model_data_nomulticol$MarArts))
-table(model_data_nomulticol$medal, model_data_nomulticol$WaterS)
+cat("Probability table of medal vs Martial Arts (1 for Water Sports, 0 otherwise)")
 prop.table(table(model_data_nomulticol$medal, model_data_nomulticol$WaterS))
-table(model_data_nomulticol$medal, model_data_nomulticol$BallG)
+cat("Probability table of medal vs Martial Arts (1 for Ball Games, 0 otherwise)")
 prop.table(table(model_data_nomulticol$medal, model_data_nomulticol$BallG))
+```
 
+### Proportional Odds Assumption
 
+This assumption requires having a parallel lines among the levels of dependent variable. The result of brant test below shows that our new model satisfies the proportional odds assumption. Additionally,  each of our independent variables also satisfy this assumption.
+
+```{r}
 print(brant(model_u))
+```
 
-model_final <- clm(medal ~ age + female +  MarArts + WaterS + BallG , data = model_data_nomulticol)
-summary(model_final)
-model_final_partial <- clm(medal ~ age +  MarArts + WaterS + BallG, nominal = ~ female, data = model_data_nomulticol)
-anova(model_final, model_final_partial)
+
+## Model Comparison
+
+When the ordered logistic regression and null model are compared, results showed that ordered logistic regression performs better than the null model.
+
+
+```{r}
+model_null <- polr(medal ~ 1, data = model_data_nomulticol)
+lrtest(model_null, model_u)
 ```
 
 ```{r}
-model_null <- clm(medal ~ 1, data = model_data_nomulticol)
+model_summary <- summary(model_u)
 
-anova(model_null, model_final_partial)
+coefs <- model_summary$coefficients[, "Value"]
+std_errors <-model_summary$coefficients[, "Std. Error"]
+z_values <- coefs / std_errors
+p_values <- 2 * pnorm(-abs(z_values))
+odds_ratios <- exp(coefs)
 
-summary(model_final_partial)
-model_summary <- summary(model_final_partial)
+result_table <- tibble(
+  Term = names(coefs),
+  Coefficients = coefs,
+  StdError = std_errors,
+  Z_value = z_values,
+  P_value = p_values,
+  OddsRatio = odds_ratios)
 
-coefs <- coef(model_final_partial)
-std_errors <- model_summary$coefficients[, "Std. Error"]
-wald_stat <- (coefs / std_errors)^2
-p_values <- 2 * (1 - pnorm(sqrt(wald_stat)))
-(p_values_female <- p_values[grep("female", names(p_values))])
+result_table <- result_table %>%
+  mutate(across(Coefficients:OddsRatio, ~ round(., digits = 3)))
 
+knitr::kable(result_table, caption = "Summary Statistics of Ordered Logistic Regression", digits = 3)
 
-(odds_ratios <- exp(round(coefs, 3)))
+ci_profile <- confint(profile(model_u))
+odds_ratio_ci <- exp(ci_profile)
+odds_ratio_ci 
 ```
-
-Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
